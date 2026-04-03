@@ -29,6 +29,9 @@ router.get('/:id/status', authenticate, ctrl.getPaymentStatus);
 router.get('/notifications', authenticate, ctrl.getNotifications);
 router.patch('/notifications/read', authenticate, ctrl.markNotificationsRead);
 
+// ===== Abonnements de l'utilisateur =====
+router.get('/my-subscriptions', authenticate, ctrl.getMySubscriptions);
+
 // ===== Créateur — Validation de ses paiements =====
 router.get('/creator/pending', authenticate, requireRole('creator', 'admin'), ctrl.getCreatorPendingPayments);
 router.get('/:id/detail', authenticate, requireRole('creator', 'admin'), ctrl.getPaymentDetail);

@@ -513,6 +513,21 @@ const markNotificationsRead = asyncHandler(async (req, res) => {
   res.json({ message: 'Notifications marquées comme lues.' });
 });
 
+// GET /api/payments/my-subscriptions
+const getMySubscriptions = asyncHandler(async (req, res) => {
+  const subscriptions = await Subscription.findAll({
+    where: { subscriber_id: req.user.id, status: 'active' },
+    include: [{
+      model: User,
+      as: 'creator',
+      attributes: ['id', 'username', 'display_name', 'avatar_url', 'bio', 'subscription_price', 'is_verified'],
+    }],
+    order: [['expires_at', 'ASC']],
+  });
+
+  res.json({ subscriptions });
+});
+
 module.exports = {
   proofUpload,
   initiatePayment,
@@ -527,4 +542,5 @@ module.exports = {
   getPaymentDetail,
   getNotifications,
   markNotificationsRead,
+  getMySubscriptions,
 };
