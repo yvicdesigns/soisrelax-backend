@@ -180,11 +180,11 @@ const getCreatorStats = asyncHandler(async (req, res) => {
       },
     }),
     sequelize.query(
-      `SELECT COALESCE(SUM(creator_amount), 0) as total FROM payments WHERE creator_id = :creatorId AND status = 'completed'`,
+      `SELECT COALESCE(SUM(creator_amount), 0) as total FROM payment_requests WHERE creator_id = :creatorId AND status = 'approved'`,
       { replacements: { creatorId: req.user.id }, type: sequelize.QueryTypes.SELECT }
     ),
     sequelize.query(
-      `SELECT COALESCE(SUM(creator_amount), 0) as total FROM payments WHERE creator_id = :creatorId AND status = 'completed' AND created_at >= date_trunc('month', NOW())`,
+      `SELECT COALESCE(SUM(creator_amount), 0) as total FROM payment_requests WHERE creator_id = :creatorId AND status = 'approved' AND created_at >= date_trunc('month', NOW())`,
       { replacements: { creatorId: req.user.id }, type: sequelize.QueryTypes.SELECT }
     ),
   ]);
