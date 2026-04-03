@@ -4,10 +4,21 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 // Client Supabase avec la clé service (accès complet au storage)
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// Lazy init — évite le crash au démarrage si les vars ne sont pas encore définies
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+      throw new Error('SUPABASE_URL et SUPABASE_SERVICE_KEY sont requis pour le stockage de fichiers.');
+    }
+    _supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  }
+  return _supabase;
+}
+// Compatibilité : accès direct via supabase.storage...
+const supabase = new Proxy({}, {
+  get(_, prop) { return getSupabase()[prop]; },
+});
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
