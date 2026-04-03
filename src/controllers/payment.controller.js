@@ -4,6 +4,7 @@ const { PaymentRequest, PaymentLog, Notification, User, Content, Subscription, W
 const paymentService = require('../services/payment.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { getProofSignedUrl } = require('../services/payment.service');
+const { notifyUser } = require('../services/push.service');
 
 // Upload proof en mémoire (pour calcul MD5 avant envoi S3)
 const proofUpload = multer({
@@ -153,6 +154,13 @@ const approvePayment = asyncHandler(async (req, res) => {
     getIo().to(`user:${pr.user_id}`).emit('payment_approved', { payment_request_id: id });
   } catch { }
 
+  // Push notification
+  try {
+    const buyer = await User.findByPk(pr.user_id, { attributes: ['expo_push_token'] });
+    const label = pr.payment_type === 'subscription' ? 'Abonnement activé !' : 'Paiement confirmé !';
+    await notifyUser(buyer?.expo_push_token, label, 'Votre paiement a été approuvé. Profitez du contenu !', { type: 'payment_approved', payment_request_id: id });
+  } catch { }
+
   res.json(result);
 });
 
@@ -187,6 +195,12 @@ const rejectPayment = asyncHandler(async (req, res) => {
       payment_request_id: id,
       rejection_reason,
     });
+  } catch { }
+
+  // Push notification
+  try {
+    const buyer = await User.findByPk(pr.user_id, { attributes: ['expo_push_token'] });
+    await notifyUser(buyer?.expo_push_token, 'Paiement non validé', rejection_reason || 'Votre preuve de paiement n\'a pas été acceptée.', { type: 'payment_rejected', payment_request_id: id });
   } catch { }
 
   res.json(result);
@@ -591,6 +605,13 @@ const completeWithdrawal = asyncHandler(async (req, res) => {
     processed_by: req.user.id,
   });
 
+  // Push notification
+  try {
+    const creator = await User.findByPk(withdraw.creator_id, { attributes: ['expo_push_token'] });
+    const { formatFCFA } = require('../utils/format');
+    await notifyUser(creator?.expo_push_token, 'Retrait effectué !', `${formatFCFA(withdraw.amount)} ont été envoyés sur votre numéro ${withdraw.phone_number}.`, { type: 'withdrawal_completed' });
+  } catch { }
+
   res.json({ message: 'Retrait marqué comme effectué.' });
 });
 
@@ -610,6 +631,12 @@ const rejectWithdrawal = asyncHandler(async (req, res) => {
     processed_at: new Date(),
     processed_by: req.user.id,
   });
+
+  // Push notification
+  try {
+    const creator = await User.findByPk(withdraw.creator_id, { attributes: ['expo_push_token'] });
+    await notifyUser(creator?.expo_push_token, 'Retrait refusé', admin_note || 'Votre demande de retrait a été refusée. Votre solde a été remboursé.', { type: 'withdrawal_rejected' });
+  } catch { }
 
   res.json({ message: 'Retrait rejeté, solde remboursé.' });
 });

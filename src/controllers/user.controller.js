@@ -209,6 +209,76 @@ const savePushToken = asyncHandler(async (req, res) => {
   res.json({ message: 'Token enregistré.' });
 });
 
+// POST /api/users/me/become-creator
+const becomeCreator = asyncHandler(async (req, res) => {
+  if (req.user.role === 'creator') {
+    return res.status(400).json({ error: 'Vous êtes déjà créateur.' });
+  }
+  if (req.user.role === 'admin') {
+    return res.status(400).json({ error: 'Un admin ne peut pas devenir créateur.' });
+  }
+
+  const { subscription_price } = req.body;
+  const price = parseInt(subscription_price);
+  if (!price || price < 500) {
+    return res.status(400).json({ error: 'Prix d\'abonnement minimum: 500 FCFA.' });
+  }
+
+  await User.update(
+    { role: 'creator', subscription_price: price },
+    { where: { id: req.user.id } }
+  );
+
+  const updated = await User.findByPk(req.user.id, {
+    attributes: { exclude: ['password_hash', 'refresh_token'] },
+  });
+
+  res.json({ message: 'Vous êtes maintenant créateur !', user: updated });
+});
+
+// GET /api/admin/users
+const adminListUsers = asyncHandler(async (req, res) => {
+  const { role, search, page = 1, limit = 50 } = req.query;
+  const where = {};
+  if (role && role !== 'all') where.role = role;
+  if (search) {
+    where[Op.or] = [
+      { username: { [Op.iLike]: `%${search}%` } },
+      { display_name: { [Op.iLike]: `%${search}%` } },
+      { email: { [Op.iLike]: `%${search}%` } },
+    ];
+  }
+
+  const { rows, count } = await User.findAndCountAll({
+    where,
+    attributes: ['id', 'username', 'display_name', 'email', 'role', 'is_verified', 'is_active', 'avatar_url', 'created_at', 'posts_count', 'followers_count', 'balance', 'total_earnings'],
+    order: [['created_at', 'DESC']],
+    limit: parseInt(limit),
+    offset: (parseInt(page) - 1) * parseInt(limit),
+  });
+
+  res.json({ users: rows, total: count, page: parseInt(page), totalPages: Math.ceil(count / parseInt(limit)) });
+});
+
+// PATCH /api/admin/users/:id/verify
+const adminVerifyUser = asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+  await user.update({ is_verified: !user.is_verified });
+  res.json({ message: user.is_verified ? 'Compte vérifié.' : 'Vérification retirée.', is_verified: user.is_verified });
+});
+
+// PATCH /api/admin/users/:id/toggle-active
+const adminToggleActive = asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  if (user.role === 'admin') return res.status(403).json({ error: 'Impossible de désactiver un admin.' });
+
+  await user.update({ is_active: !user.is_active });
+  res.json({ message: user.is_active ? 'Compte activé.' : 'Compte suspendu.', is_active: user.is_active });
+});
+
 module.exports = {
   getProfile,
   searchUsers,
@@ -219,4 +289,8 @@ module.exports = {
   followUser,
   getCreatorStats,
   savePushToken,
+  becomeCreator,
+  adminListUsers,
+  adminVerifyUser,
+  adminToggleActive,
 };

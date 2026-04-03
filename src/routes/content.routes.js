@@ -10,6 +10,7 @@ router.get('/creator/:userId', optionalAuth, ctrl.getCreatorContent);
 router.get('/:id', optionalAuth, ctrl.getContent);
 router.post('/:id/like', authenticate, ctrl.toggleLike);
 router.post('/:id/comment', authenticate, ctrl.addComment);
+router.patch('/:id', authenticate, ctrl.updateContent);
 router.delete('/:id', authenticate, ctrl.deleteContent);
 
 module.exports = router;

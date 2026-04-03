@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { Message, User, sequelize } = require('../models');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { createNotification } = require('../services/payment.service');
+const { notifyUser } = require('../services/push.service');
 
 // GET /api/messages/conversations
 const getConversations = asyncHandler(async (req, res) => {
@@ -120,8 +121,9 @@ const sendMessage = asyncHandler(async (req, res) => {
     getIo().to(`user:${userId}`).emit('new_message', full);
   } catch { /* socket optionnel */ }
 
-  // Notification
+  // Notification in-app + push
   const sender = await User.findByPk(myId, { attributes: ['display_name'] });
+  const receiver2 = await User.findByPk(userId, { attributes: ['expo_push_token'] });
   createNotification({
     userId,
     type: 'new_message',
@@ -130,6 +132,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     data: { screen: 'Conversation', userId: myId },
     relatedId: message.id,
   });
+  notifyUser(
+    receiver2?.expo_push_token,
+    `${sender?.display_name}`,
+    content?.trim()?.slice(0, 100) || 'Vous avez un nouveau message',
+    { type: 'new_message', senderId: myId }
+  ).catch(() => {});
 
   res.status(201).json({ message: full });
 });

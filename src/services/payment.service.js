@@ -7,6 +7,7 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { PaymentRequest, PaymentLog, Notification, User, Subscription, Content, sequelize } = require('../models');
+const { notifyUser } = require('./push.service');
 
 // ===== Comptes Mobile Money de la plateforme (depuis .env) =====
 const PLATFORM_ACCOUNTS = {
@@ -332,7 +333,7 @@ async function approvePayment({ paymentRequestId, validatedBy, validatorRole, ip
       ipAddress,
     });
 
-    // Notifier l'utilisateur
+    // Notifier l'utilisateur (in-app)
     await createNotification({
       userId: pr.user_id,
       type: 'payment_approved',
@@ -343,6 +344,22 @@ async function approvePayment({ paymentRequestId, validatedBy, validatorRole, ip
       data: { payment_request_id: paymentRequestId, type: pr.payment_type },
       relatedId: paymentRequestId,
     });
+
+    // Notifier le créateur (nouvel abonné ou achat)
+    if (pr.payment_type === 'subscription') {
+      try {
+        const [buyer, creator] = await Promise.all([
+          User.findByPk(pr.user_id, { attributes: ['display_name', 'username'] }),
+          User.findByPk(pr.creator_id, { attributes: ['expo_push_token'] }),
+        ]);
+        await notifyUser(
+          creator?.expo_push_token,
+          'Nouvel abonné !',
+          `${buyer?.display_name || buyer?.username} vient de s'abonner à votre compte.`,
+          { type: 'new_subscriber' }
+        );
+      } catch { }
+    }
 
     return { message: 'Paiement approuvé. Accès accordé à l\'utilisateur.' };
   } catch (error) {
