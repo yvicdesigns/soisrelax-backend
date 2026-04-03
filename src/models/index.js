@@ -10,6 +10,7 @@ const Message = require('./Message');
 const Like = require('./Like');
 const Comment = require('./Comment');
 const Follow = require('./Follow');
+const WithdrawRequest = require('./WithdrawRequest');
 
 // ===== Relations User =====
 User.hasMany(Content, { foreignKey: 'creator_id', as: 'contents' });
@@ -71,6 +72,11 @@ Comment.belongsTo(Content, { foreignKey: 'content_id', as: 'content' });
 Follow.belongsTo(User, { foreignKey: 'follower_id', as: 'follower' });
 Follow.belongsTo(User, { foreignKey: 'following_id', as: 'followed' });
 
+// ===== Relations WithdrawRequest =====
+WithdrawRequest.belongsTo(User, { foreignKey: 'creator_id', as: 'creator' });
+WithdrawRequest.belongsTo(User, { foreignKey: 'processed_by', as: 'processor' });
+User.hasMany(WithdrawRequest, { foreignKey: 'creator_id', as: 'withdrawRequests' });
+
 module.exports = {
   sequelize,
   User,
@@ -84,4 +90,5 @@ module.exports = {
   Like,
   Comment,
   Follow,
+  WithdrawRequest,
 };

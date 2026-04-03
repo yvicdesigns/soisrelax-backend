@@ -38,9 +38,16 @@ router.get('/:id/detail', authenticate, requireRole('creator', 'admin'), ctrl.ge
 router.post('/:id/approve', authenticate, requireRole('creator', 'admin'), ctrl.approvePayment);
 router.post('/:id/reject', authenticate, requireRole('creator', 'admin'), ctrl.rejectPayment);
 
+// ===== Retraits créateur =====
+router.post('/withdraw', authenticate, requireRole('creator'), ctrl.requestWithdraw);
+router.get('/my-withdrawals', authenticate, requireRole('creator'), ctrl.getMyWithdrawals);
+
 // ===== Admin uniquement =====
 router.get('/admin/dashboard', authenticate, requireRole('admin'), ctrl.getAdminDashboard);
 router.get('/admin/list', authenticate, requireRole('admin'), ctrl.getAdminPaymentList);
 router.get('/admin/export.csv', authenticate, requireRole('admin'), ctrl.exportPaymentsCsv);
+router.get('/admin/withdrawals', authenticate, requireRole('admin'), ctrl.getAdminWithdrawals);
+router.post('/admin/withdrawals/:id/complete', authenticate, requireRole('admin'), ctrl.completeWithdrawal);
+router.post('/admin/withdrawals/:id/reject', authenticate, requireRole('admin'), ctrl.rejectWithdrawal);
 
 module.exports = router;

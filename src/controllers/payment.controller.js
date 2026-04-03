@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const multer = require('multer');
-const { PaymentRequest, PaymentLog, Notification, User, Content, Subscription, sequelize } = require('../models');
+const { PaymentRequest, PaymentLog, Notification, User, Content, Subscription, WithdrawRequest, sequelize } = require('../models');
 const paymentService = require('../services/payment.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { getProofSignedUrl } = require('../services/payment.service');
@@ -513,6 +513,107 @@ const markNotificationsRead = asyncHandler(async (req, res) => {
   res.json({ message: 'Notifications marquées comme lues.' });
 });
 
+// POST /api/payments/withdraw
+const requestWithdraw = asyncHandler(async (req, res) => {
+  const { amount, phone_number, provider } = req.body;
+  const userId = req.user.id;
+
+  if (req.user.role !== 'creator') {
+    return res.status(403).json({ error: 'Réservé aux créateurs.' });
+  }
+  if (!amount || parseInt(amount) < 1000) {
+    return res.status(400).json({ error: 'Montant minimum: 1 000 FCFA.' });
+  }
+  if (!phone_number || !provider) {
+    return res.status(400).json({ error: 'Numéro et opérateur requis.' });
+  }
+
+  const user = await User.findByPk(userId);
+  if (!user || user.balance < parseInt(amount)) {
+    return res.status(400).json({ error: 'Solde insuffisant.' });
+  }
+
+  // Vérifier pas de retrait pending en cours
+  const existing = await WithdrawRequest.findOne({
+    where: { creator_id: userId, status: ['pending', 'processing'] },
+  });
+  if (existing) {
+    return res.status(400).json({ error: 'Un retrait est déjà en cours de traitement.' });
+  }
+
+  // Déduire du solde et créer la demande
+  await user.decrement('balance', { by: parseInt(amount) });
+  const withdraw = await WithdrawRequest.create({
+    creator_id: userId,
+    amount: parseInt(amount),
+    phone_number,
+    provider,
+  });
+
+  res.json({ message: 'Demande de retrait soumise.', withdraw });
+});
+
+// GET /api/payments/withdrawals — historique créateur
+const getMyWithdrawals = asyncHandler(async (req, res) => {
+  const withdrawals = await WithdrawRequest.findAll({
+    where: { creator_id: req.user.id },
+    order: [['created_at', 'DESC']],
+    limit: 20,
+  });
+  res.json({ withdrawals });
+});
+
+// GET /api/payments/admin/withdrawals — liste admin
+const getAdminWithdrawals = asyncHandler(async (req, res) => {
+  const { status = 'pending' } = req.query;
+  const where = status !== 'all' ? { status } : {};
+  const withdrawals = await WithdrawRequest.findAll({
+    where,
+    include: [{ model: User, as: 'creator', attributes: ['id', 'username', 'display_name', 'avatar_url'] }],
+    order: [['created_at', 'DESC']],
+  });
+  res.json({ withdrawals });
+});
+
+// POST /api/payments/admin/withdrawals/:id/complete
+const completeWithdrawal = asyncHandler(async (req, res) => {
+  const { admin_note } = req.body;
+  const withdraw = await WithdrawRequest.findByPk(req.params.id);
+  if (!withdraw) return res.status(404).json({ error: 'Demande introuvable.' });
+  if (withdraw.status !== 'pending' && withdraw.status !== 'processing') {
+    return res.status(400).json({ error: 'Demande déjà traitée.' });
+  }
+
+  await withdraw.update({
+    status: 'completed',
+    admin_note,
+    processed_at: new Date(),
+    processed_by: req.user.id,
+  });
+
+  res.json({ message: 'Retrait marqué comme effectué.' });
+});
+
+// POST /api/payments/admin/withdrawals/:id/reject
+const rejectWithdrawal = asyncHandler(async (req, res) => {
+  const { admin_note } = req.body;
+  const withdraw = await WithdrawRequest.findByPk(req.params.id, {
+    include: [{ model: User, as: 'creator' }],
+  });
+  if (!withdraw) return res.status(404).json({ error: 'Demande introuvable.' });
+
+  // Rembourser le solde
+  await withdraw.creator.increment('balance', { by: withdraw.amount });
+  await withdraw.update({
+    status: 'rejected',
+    admin_note,
+    processed_at: new Date(),
+    processed_by: req.user.id,
+  });
+
+  res.json({ message: 'Retrait rejeté, solde remboursé.' });
+});
+
 // GET /api/payments/my-subscriptions
 const getMySubscriptions = asyncHandler(async (req, res) => {
   const subscriptions = await Subscription.findAll({
@@ -543,4 +644,9 @@ module.exports = {
   getNotifications,
   markNotificationsRead,
   getMySubscriptions,
+  requestWithdraw,
+  getMyWithdrawals,
+  getAdminWithdrawals,
+  completeWithdrawal,
+  rejectWithdrawal,
 };
