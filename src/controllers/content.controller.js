@@ -3,6 +3,7 @@ const { Content, User, Like, Comment, Subscription } = require('../models');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { uploadToSupabase, deleteFromSupabase } = require('../config/storage');
 const { sendPushNotifications } = require('../services/push.service');
+const { createNotification } = require('../services/payment.service');
 
 // Vérifie si l'utilisateur a accès au contenu
 async function hasAccess(userId, content) {
@@ -93,17 +94,33 @@ const createContent = asyncHandler(async (req, res) => {
       include: [{ model: User, as: 'subscriber', attributes: ['expo_push_token'] }],
     });
 
-    const messages = subscribers
-      .filter((s) => s.subscriber?.expo_push_token)
-      .map((s) => ({
-        to: s.subscriber.expo_push_token,
-        title: `${req.user.display_name} a publié`,
-        body: content.title || (content.content_type === 'video' ? 'Nouvelle vidéo' : 'Nouvelle publication'),
-        data: { type: 'new_content', contentId: content.id },
-      }));
+    const notifTitle = `${req.user.display_name} a publié`;
+    const notifBody = content.description?.slice(0, 80) || (content.content_type === 'video' ? 'Nouvelle vidéo' : 'Nouvelle publication');
 
-    if (messages.length > 0) {
-      sendPushNotifications(messages).catch(() => {});
+    const pushMessages = [];
+    for (const s of subscribers) {
+      // In-app notification
+      createNotification({
+        userId: s.subscriber_id,
+        type: 'new_content',
+        title: notifTitle,
+        body: notifBody,
+        data: { screen: 'ContentView', contentId: content.id, username: req.user.username },
+        relatedId: content.id,
+      }).catch(() => {});
+
+      if (s.subscriber?.expo_push_token) {
+        pushMessages.push({
+          to: s.subscriber.expo_push_token,
+          title: notifTitle,
+          body: notifBody,
+          data: { type: 'new_content', contentId: content.id },
+        });
+      }
+    }
+
+    if (pushMessages.length > 0) {
+      sendPushNotifications(pushMessages).catch(() => {});
     }
   } catch { }
 
