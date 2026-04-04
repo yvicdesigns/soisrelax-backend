@@ -4,6 +4,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { uploadToSupabase, deleteFromSupabase } = require('../config/storage');
 const { sendPushNotifications } = require('../services/push.service');
 const { createNotification } = require('../services/payment.service');
+const sharp = require('sharp');
 
 // Vérifie si l'utilisateur a accès au contenu
 async function hasAccess(userId, content) {
@@ -38,26 +39,34 @@ const createContent = asyncHandler(async (req, res) => {
   const thumbFile = req.files?.thumbnail?.[0];
 
   if (mainFile) {
-    const { key, url } = await uploadToSupabase(
-      mainFile.buffer,
-      'content',
-      'content',
-      mainFile.mimetype
-    );
+    let uploadBuffer = mainFile.buffer;
+    let uploadMime = mainFile.mimetype;
+
+    // Optimize images (resize max 1920px, convert to JPEG)
+    if (mainFile.mimetype.startsWith('image/')) {
+      uploadBuffer = await sharp(mainFile.buffer)
+        .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      uploadMime = 'image/jpeg';
+    }
+
+    const { key, url } = await uploadToSupabase(uploadBuffer, 'content', 'content', uploadMime);
     fileData = {
       file_url: url,
       file_key: key,
-      file_size: mainFile.size,
+      file_size: uploadBuffer.length,
     };
   }
 
   if (thumbFile) {
-    const { url: thumbUrl } = await uploadToSupabase(
-      thumbFile.buffer,
-      'content',
-      'thumbnails',
-      thumbFile.mimetype
-    );
+    // Optimize thumbnail: resize to 640x360
+    const optimizedThumb = await sharp(thumbFile.buffer)
+      .resize(640, 360, { fit: 'cover' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+
+    const { url: thumbUrl } = await uploadToSupabase(optimizedThumb, 'content', 'thumbnails', 'image/jpeg');
     fileData.thumbnail_url = thumbUrl;
   }
 

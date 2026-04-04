@@ -3,6 +3,7 @@ const { User, Content, Subscription, Follow, sequelize } = require('../models');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { uploadToSupabase } = require('../config/storage');
 const { createNotification } = require('../services/payment.service');
+const sharp = require('sharp');
 
 // GET /api/users/:username
 const getProfile = asyncHandler(async (req, res) => {
@@ -114,7 +115,13 @@ const updateProfile = asyncHandler(async (req, res) => {
 const updateAvatar = asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu.' });
 
-  const { url } = await uploadToSupabase(req.file.buffer, 'avatars', 'avatars', req.file.mimetype);
+  // Resize to 400×400, convert to JPEG for consistency and smaller size
+  const optimized = await sharp(req.file.buffer)
+    .resize(400, 400, { fit: 'cover', position: 'center' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  const { url } = await uploadToSupabase(optimized, 'avatars', 'avatars', 'image/jpeg');
   await User.update({ avatar_url: url }, { where: { id: req.user.id } });
 
   res.json({ message: 'Photo de profil mise à jour.', avatar_url: url });
@@ -124,7 +131,13 @@ const updateAvatar = asyncHandler(async (req, res) => {
 const updateCover = asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu.' });
 
-  const { url } = await uploadToSupabase(req.file.buffer, 'covers', 'covers', req.file.mimetype);
+  // Resize to 1200×400, convert to JPEG
+  const optimized = await sharp(req.file.buffer)
+    .resize(1200, 400, { fit: 'cover', position: 'center' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  const { url } = await uploadToSupabase(optimized, 'covers', 'covers', 'image/jpeg');
   await User.update({ cover_url: url }, { where: { id: req.user.id } });
 
   res.json({ message: 'Photo de couverture mise à jour.', cover_url: url });
