@@ -33,18 +33,31 @@ const createContent = asyncHandler(async (req, res) => {
   }
 
   let fileData = {};
-  if (req.file) {
+  const mainFile = req.files?.file?.[0];
+  const thumbFile = req.files?.thumbnail?.[0];
+
+  if (mainFile) {
     const { key, url } = await uploadToSupabase(
-      req.file.buffer,
+      mainFile.buffer,
       'content',
       'content',
-      req.file.mimetype
+      mainFile.mimetype
     );
     fileData = {
       file_url: url,
       file_key: key,
-      file_size: req.file.size,
+      file_size: mainFile.size,
     };
+  }
+
+  if (thumbFile) {
+    const { url: thumbUrl } = await uploadToSupabase(
+      thumbFile.buffer,
+      'content',
+      'thumbnails',
+      thumbFile.mimetype
+    );
+    fileData.thumbnail_url = thumbUrl;
   }
 
   const content = await Content.create({

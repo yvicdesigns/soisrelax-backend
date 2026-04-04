@@ -5,7 +5,7 @@ const { authenticate, optionalAuth } = require('../middleware/auth');
 const { uploadContent } = require('../config/storage');
 
 router.get('/feed', optionalAuth, ctrl.getFeed);
-router.post('/', authenticate, uploadContent.single('file'), ctrl.createContent);
+router.post('/', authenticate, uploadContent.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]), ctrl.createContent);
 router.get('/creator/:userId', optionalAuth, ctrl.getCreatorContent);
 router.get('/:id', optionalAuth, ctrl.getContent);
 router.post('/:id/like', authenticate, ctrl.toggleLike);
