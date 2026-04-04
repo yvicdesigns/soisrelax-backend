@@ -361,6 +361,38 @@ const deleteContent = asyncHandler(async (req, res) => {
   res.json({ message: 'Contenu supprimé.' });
 });
 
+// GET /api/content/admin/list — liste admin avec filtre
+const adminListContent = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, search } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const where = { is_published: true };
+  if (search) {
+    where[Op.or] = [
+      { description: { [Op.iLike]: `%${search}%` } },
+    ];
+  }
+
+  const { rows, count } = await Content.findAndCountAll({
+    where,
+    include: [{
+      model: User,
+      as: 'creator',
+      attributes: ['id', 'username', 'display_name', 'avatar_url'],
+    }],
+    limit: parseInt(limit),
+    offset,
+    order: [['created_at', 'DESC']],
+  });
+
+  res.json({
+    contents: rows,
+    total: count,
+    page: parseInt(page),
+    totalPages: Math.ceil(count / parseInt(limit)),
+  });
+});
+
 module.exports = {
   createContent,
   getFeed,
@@ -370,4 +402,5 @@ module.exports = {
   addComment,
   updateContent,
   deleteContent,
+  adminListContent,
 };
