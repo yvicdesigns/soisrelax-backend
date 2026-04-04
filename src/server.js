@@ -18,6 +18,11 @@ async function startServer() {
     await sequelize.sync({ alter: true });
     console.log('✅ Modèles synchronisés');
 
+    // Ajouter les nouvelles valeurs ENUM si elles n'existent pas encore
+    try {
+      await sequelize.query(`ALTER TYPE "enum_notifications_type" ADD VALUE IF NOT EXISTS 'new_content'`);
+    } catch { /* enum type may not exist yet or value already added */ }
+
     // Démarrer les jobs cron (expiration + escalade paiements)
     startPaymentJobs();
 

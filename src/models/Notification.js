@@ -20,6 +20,7 @@ const Notification = sequelize.define('Notification', {
       'payment_escalated',           // Pour l'admin
       'new_subscriber',              // Pour le créateur
       'new_message',                 // Pour le destinataire
+      'new_content',                 // Pour les abonnés
     ),
     allowNull: false,
   },
