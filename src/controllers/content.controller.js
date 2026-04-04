@@ -355,8 +355,9 @@ const deleteContent = asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Non autorisé.' });
   }
 
+  const creatorId = content.creator_id;
   await content.destroy();
-  await User.decrement('posts_count', { where: { id: req.user.id } });
+  await User.decrement('posts_count', { where: { id: creatorId } });
 
   res.json({ message: 'Contenu supprimé.' });
 });
