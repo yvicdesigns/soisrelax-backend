@@ -134,4 +134,26 @@ const me = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
-module.exports = { register, login, refresh, logout, me };
+// POST /api/auth/change-password
+const changePassword = asyncHandler(async (req, res) => {
+  const { current_password, new_password } = req.body;
+
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis.' });
+  }
+  if (new_password.length < 8) {
+    return res.status(400).json({ error: 'Le nouveau mot de passe doit faire au moins 8 caractères.' });
+  }
+
+  const user = await User.findByPk(req.user.id);
+  if (!user || !(await user.validatePassword(current_password))) {
+    return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+  }
+
+  user.password_hash = new_password;
+  await user.save();
+
+  res.json({ message: 'Mot de passe modifié avec succès.' });
+});
+
+module.exports = { register, login, refresh, logout, me, changePassword };
